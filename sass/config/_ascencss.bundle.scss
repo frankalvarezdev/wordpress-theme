@@ -1,0 +1,403 @@
+@function isCoreBreakpoint($bp) {
+    @if map-get($breakpoints, $bp) {
+        @return true;
+    }
+
+    @else {
+        @return false;
+    }
+}
+
+@function isValidBreakpoint($bp) {
+    @if type-of($bp)==number and (unit($bp)=="px"or unit($bp)=="em"or unit($bp)=="rem") {
+        @return true;
+    }
+
+    @else {
+        @return false;
+    }
+}
+
+@function getBp($bp) {
+    @return map-get($breakpoints, $bp);
+}
+
+@mixin from($from) {
+    @if isCoreBreakpoint($from) {
+        @if $from==xm {
+            @content;
+        }
+
+        @else {
+            @media screen and (min-width: getBp($from)) {
+                @content;
+            }
+        }
+    }
+
+    @else if isValidBreakpoint($from) {
+        @media screen and (min-width: $from) {
+            @content;
+        }
+    }
+
+    @else {
+        @error 'El mixin from() solo puede recibir un breakpoint del Core (#{map-keys($breakpoints)}) o un número en px, em o rem';
+    }
+}
+
+@mixin to($to) {
+    @if isCoreBreakpoint($to) {
+        @if $to==xm {
+            @content;
+        }
+
+        @else {
+            @media screen and (max-width: getBp($to)) {
+                @content;
+            }
+        }
+    }
+
+    @else if isValidBreakpoint($to) {
+        @media screen and (max-width: topx($to)) {
+            @content;
+        }
+    }
+
+    @else {
+        @error 'El mixin to() solo puede recibir un breakpoint del Core (#{map-keys($breakpoints)}) o un número en px, em o rem';
+    }
+}
+
+@mixin from-to($from, $to) {
+    @if isCoreBreakpoint($from) and isCoreBreakpoint($to) {
+        @if getBp($to)>getBp($from) {
+            @media screen and (min-width: getBp($from)) and (max-width: getBp($to)) {
+                @content;
+            }
+        }
+
+        @else {
+            @error "El segundo argumento del mixin from-to debe ser mayor que el primero";
+        }
+    }
+
+    @else if isCoreBreakpoint($from) and not isCoreBreakpoint($to) {
+        @if isValidBreakpoint($to) {
+            @if topx($to)>topx(getBp($from)) {
+                @media screen and (min-width: getBp($from)) and (max-width: topx($to)) {
+                    @content;
+                }
+            }
+
+            @else {
+                @error "El segundo argumento del mixin from-to debe ser mayor que el primero";
+            }
+        }
+
+        @else {
+            @error "El segundo argumento del mixin from-to() debe ser un breakpoint del Core (#{map-keys($breakpoints)}) o un número en px, em o rem";
+        }
+    }
+
+    @else if not isCoreBreakpoint($from) and isCoreBreakpoint($to) {
+        @if isValidBreakpoint($from) {
+            @if topx(getBp($to))>topx($from) {
+                @media screen and (min-width: $from) and (max-width: getBp($to)) {
+                    @content;
+                }
+            }
+
+            @else {
+                @error "El segundo argumento del mixin from-to debe ser mayor que el primero";
+            }
+        }
+
+        @else {
+            @error "El primer argumento del mixin from-to() debe ser un breakpoint del Core (#{map-keys($breakpoints)}) o un número en px, em o rem";
+        }
+    }
+
+    @else if isValidBreakpoint($from) and isValidBreakpoint($to) {
+        @if topx($to)>topx($from) {
+            @media screen and (min-width: $from) and (max-width: topx($to)) {
+                @content;
+            }
+        }
+
+        @else {
+            @error "El segundo argumento del mixin from-to debe ser mayor que el primero";
+        }
+    }
+
+    @else {
+        @error 'Los argumentos del mixin from-to() deben ser breakpoints del Core (#{map-keys($breakpoints)}) o números en px, em o rem';
+    }
+}
+
+@function rpt($number, $value) {
+    $values: "";
+
+    @for $i from 1 through $number {
+        @if $i==1 {
+            $values: $values + $value;
+        }
+
+        @else {
+            $values: $values + " "+ $value;
+        }
+    }
+
+    @return unquote($values);
+}
+
+@use 'sass:math';
+
+@function _div($a, $b) {
+    @if not variable-exists("__legacy-libsass") and call(get-function("function-exists"), "div", "math") {
+        @return call(get-function($name: "div", $module: "math"), $a, $b);
+    }
+
+    @else {
+        @return $a / $b;
+    }
+}
+
+@function topx($value) {
+    @if type-of($value)==number {
+        @if unit($value)=="em" {
+            @return _div($value, 1em) * 16px;
+        }
+
+        @else if unit($value)=="rem" {
+            @return _div($value, 1rem) * 16px;
+        }
+
+        @else if unit($value)=="px" {
+            @return $value;
+        }
+
+        @else {
+            @error "La funcion toPx() solo acepta numeros en em o rem o px";
+        }
+    }
+
+    @else {
+        @error "La funcion toPx() solo acepta numeros en em o rem";
+    }
+}
+
+@function create-grid-values($values) {
+    $values: check-and-split($values + "");
+    $r: "";
+    $n: 1;
+
+    @each $value in $values {
+        @if type-of(number($value)) !='number' {
+            @error "'#{$values}' no son numeros";
+        }
+
+        $value: $value+"fr";
+
+        @if $n==1 {
+            $r: $value;
+        }
+
+        @else {
+            $r: "#{$r} #{$value}";
+        }
+
+        $n: $n+1;
+    }
+
+    @return unquote($r);
+}
+
+@mixin grid($col: null, $row: null) {
+    @if $col==null and $row==null {
+        @error "No se han definido las variables -> grid($col, $row)";
+    }
+
+    display: grid;
+
+    @if $col !=null {
+        grid-template-columns: create-grid-values($col);
+    }
+
+    @if $row !=null {
+        grid-template-rows: create-grid-values($row);
+    }
+}
+
+@mixin row($row: null) {
+    @if $row==null and $row==null {
+        @error "No se han definido las variables -> grid($col, $row)";
+    }
+
+    @if $row !=null {
+        grid-template-rows: create-grid-values($row);
+    }
+}
+
+@mixin col($col: null) {
+    @if $col==null {
+        @error "No se han definido las variables -> grid($col, $row)";
+    }
+
+    @if $col !=null {
+        grid-template-columns: create-grid-values($col);
+    }
+}
+
+@mixin ascendcss-nth($number, $cols, $tagName, $template) {
+    @if $number !=null and $cols !=null {
+        #{$tagName}:nth-child(#{$number}) {
+            #{$template}: $cols;
+        }
+    }
+}
+
+@mixin ascendcss-span-nth($number, $cols, $tagName, $template) {
+    @if $number !=null and $cols !=null {
+        #{$tagName}:nth-child(#{$number}) {
+            #{$template}: span $cols;
+        }
+    }
+}
+
+@mixin cols($cols) {
+    grid-column-end: span $cols;
+}
+
+@mixin cols-nth($number: null, $cols: null, $tagName: div) {
+    @include ascendcss-span-nth($number, $cols, $tagName, grid-column-end);
+}
+
+@mixin cols-st($col-st) {
+    grid-column-start: $col-st;
+}
+
+@mixin col-st-nth($number: null, $col-st: null, $tagName: div) {
+    @include ascendcss-nth($number, $col-st, $tagName, grid-column-start);
+}
+
+@mixin rows($rows) {
+    grid-row-end: span $rows;
+}
+
+@mixin rows-nth($number: null, $cols: null, $tagName: div) {
+    @include ascendcss-span-nth($number, $cols, $tagName, grid-row-end);
+}
+
+@mixin cols-st($row-st) {
+    grid-row-start: $row-st;
+}
+
+@mixin row-st-nth($number: null, $col-st: null, $tagName: div) {
+    @include ascendcss-nth($number, $col-st, $tagName, grid-row-start);
+}
+
+@function check-and-split($values) {
+    @if str-slice($values, 1, 1)==" " {
+        $values: str-slice($values, 2, -1);
+    }
+
+    $values: str-split($values, " ");
+    @return $values
+}
+
+@function str-split($string, $separator) {
+    $split-arr: ();
+    $index: str-index($string, $separator);
+
+    @while $index !=null {
+        $item: str-slice($string, 1, $index - 1);
+        $split-arr: append($split-arr, $item);
+        $string: str-slice($string, $index + 1);
+        $index: str-index($string, $separator);
+    }
+
+    $split-arr: append($split-arr, $string);
+    @return $split-arr;
+}
+
+@function number($value) {
+    @if type-of($value)=="number" {
+        @return $value;
+    }
+
+    $result: 0;
+    $digits: 0;
+    $minus: str-slice($value, 1, 1)=="-";
+    $numbers: ("0": 0,
+        "1": 1,
+        "2": 2,
+        "3": 3,
+        "4": 4,
+        "5": 5,
+        "6": 6,
+        "7": 7,
+        "8": 8,
+        "9": 9,
+    );
+
+    @for $i from if($minus, 2, 1) through str-length($value) {
+        $character: str-slice($value, $i, $i);
+
+        @if not(index(map-keys($numbers), $character) or $character==".") {
+            @return to-length(if($minus, -$result, $result), str-slice($value, $i));
+        }
+
+        @if $character=="." {
+            $digits: 1;
+        }
+
+        @else if $digits==0 {
+            $result: $result * 10 + map-get($numbers, $character);
+        }
+
+        @else {
+            $digits: $digits * 10;
+            $result: $result + map-get($numbers, $character) / $digits;
+        }
+    }
+
+    @return if($minus, -$result, $result);
+}
+
+@mixin center {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+@mixin center-x {
+    display: flex;
+    justify-content: center;
+}
+
+@mixin center-y {
+    display: flex;
+    align-items: center;
+}
+
+@mixin top {
+    display: flex;
+    align-items: flex-start;
+}
+
+@mixin bottom {
+    display: flex;
+    align-items: flex-end;
+}
+
+@mixin left {
+    display: flex;
+    justify-content: flex-start;
+}
+
+@mixin right {
+    display: flex;
+    justify-content: flex-end;
+}
